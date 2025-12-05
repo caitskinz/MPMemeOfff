@@ -239,55 +239,55 @@
   </div>
 <script>
 
-    // 👉 Paste your Apps Script web app URL here (no trailing ?)
-    const API_URL = "https://script.google.com/macros/s/AKfycbyZAnMIq0wDCugVk5e49qwIAO_0x-7YXEPE5ZI_Vt5pskyp9h-BbXjyxgYee5BXXuP8/exec";
 
-    const grid = document.getElementById("grid");
-    const statusEl = document.getElementById("status");
+// 👉 Paste your Apps Script web app URL here (no trailing ?)
+const API_URL = "https://script.google.com/macros/s/AKfycbyhHwT3XuOgzbwG7cA3UJhZiL6HgM0Y21Skg8UF9JQT31kKiW0SHnfZU6S9A6kLde-5/exec";
 
-    function setStatus(message, type = "info") {
-      if (!statusEl) return;
-      const color = type === "error" ? "#f97373" : "#9ca3af";
-      statusEl.innerHTML = `
+const grid = document.getElementById("grid");
+const statusEl = document.getElementById("status");
+
+function setStatus(message, type = "info") {
+  if (!statusEl) return;
+  const color = type === "error" ? "#f97373" : "#9ca3af";
+  statusEl.innerHTML = `
         <span style="border-color:${color}">
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="8" cy="8" r="7" stroke="${color}" stroke-width="1.3" fill="none"></circle>
-            ${
-              type === "error"
-                ? '<line x1="5" y1="5" x2="11" y2="11" stroke="#f97373" stroke-width="1.4" stroke-linecap="round"></line><line x1="11" y1="5" x2="5" y2="11" stroke="#f97373" stroke-width="1.4" stroke-linecap="round"></line>'
-                : '<path d="M4.5 8.2 7 10.7 11.5 5.5" stroke="#22c55e" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>'
-            }
+            ${type === "error"
+      ? '<line x1="5" y1="5" x2="11" y2="11" stroke="#f97373" stroke-width="1.4" stroke-linecap="round"></line><line x1="11" y1="5" x2="5" y2="11" stroke="#f97373" stroke-width="1.4" stroke-linecap="round"></line>'
+      : '<path d="M4.5 8.2 7 10.7 11.5 5.5" stroke="#22c55e" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>'
+    }
           </svg>
           <span>${message}</span>
         </span>
       `;
+}
+
+async function loadPhotos() {
+  try {
+    setStatus("Loading memes…");
+
+    const res = await fetch(API_URL + "?action=list");
+    if (!res.ok) throw new Error("API error " + res.status);
+
+    const photos = await res.json();
+    if (!Array.isArray(photos) || photos.length === 0) {
+      grid.innerHTML = "";
+      setStatus("No entries yet – check back soon!");
+      return;
     }
 
-    async function loadPhotos() {
-      try {
-        setStatus("Loading memes…");
+    // Sort by votes descending
+    photos.sort((a, b) => (b.votes || 0) - (a.votes || 0));
 
-        const res = await fetch(API_URL + "?action=list");
-        if (!res.ok) throw new Error("API error " + res.status);
+    grid.innerHTML = "";
+    photos.forEach(photo => {
+      const card = document.createElement("div");
+      card.className = "card";
 
-        const photos = await res.json();
-        if (!Array.isArray(photos) || photos.length === 0) {
-          grid.innerHTML = "";
-          setStatus("No entries yet – check back soon!");
-          return;
-        }
+      const safeTitle = photo.title || "Untitled meme";
 
-        // Sort by votes descending
-        photos.sort((a, b) => (b.votes || 0) - (a.votes || 0));
-
-        grid.innerHTML = "";
-        photos.forEach(photo => {
-          const card = document.createElement("div");
-          card.className = "card";
-
-          const safeTitle = photo.title || "Untitled meme";
-
-          card.innerHTML = `
+      card.innerHTML = `
             <img src="${photo.image}" alt="${safeTitle}">
             <h3>${safeTitle}</h3>
             <div class="meta">
@@ -305,58 +305,63 @@
             </div>
           `;
 
-          grid.appendChild(card);
-        });
+      grid.appendChild(card);
+    });
 
-        attachVoteHandlers();
-        setStatus(`Loaded ${photos.length} meme${photos.length === 1 ? "" : "s"}.`);
-      } catch (err) {
-        console.error(err);
-        setStatus("Couldn’t load memes. Please try refreshing the page.", "error");
-      }
-    }
+    attachVoteHandlers();
+    setStatus(`Loaded ${photos.length} meme${photos.length === 1 ? "" : "s"}.`);
+  } catch (err) {
+    console.error(err);
+    setStatus("Couldn’t load memes. Please try refreshing the page.", "error");
+  }
+}
 
-    function attachVoteHandlers() {
-      const buttons = grid.querySelectorAll(".vote-btn");
-      buttons.forEach(btn => {
-        btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          if (!id) return;
+function attachVoteHandlers() {
+  const buttons = grid.querySelectorAll(".vote-btn");
+  buttons.forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-id");
+      if (!id) return;
 
-          // Optional simple double-click protection
-          btn.disabled = true;
-          try {
-            await vote(id);
-          } catch (err) {
-            console.error(err);
-            btn.disabled = false;
-          }
-        });
-      });
-    }
-
-    async function vote(id) {
+      // Optional simple double-click protection
+      btn.disabled = true;
       try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "vote", id })
-        });
-
-        if (!res.ok) {
-          throw new Error("Vote failed with status " + res.status);
-        }
-
-        // Reload the latest counts
-        await loadPhotos();
+        await vote(id);
       } catch (err) {
         console.error(err);
-        setStatus("There was a problem recording your vote. Please try again.", "error");
+        btn.disabled = false;
       }
-    }
+    });
+  });
+}
 
-    // Kick it off
-    loadPhotos();
+async function vote(id) {
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      redirect: "follow", // important for Apps Script redirects 
+      headers: {
+        // text/plain avoids preflight and still lets us send JSON
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({ action: "vote", id })
+    });
+
+    // We don't really need to read the response, but we can if we want:
+    // const result = await res.json();
+
+    // Reload latest vote counts
+    await loadPhotos();
+  } catch (err) {
+    console.error("Error voting:", err);
+    alert("Sorry, your vote didn’t go through. Please try again.");
+  }
+}
+
+
+// Kick it off
+loadPhotos();
+
 </script>  
 </body>
 </html>
